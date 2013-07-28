@@ -1,7 +1,7 @@
 var get = Ember.get,
     set = Ember.set;
 
-Ember.RecordArray = Ember.ArrayProxy.extend(Ember.Evented, Ember.DeferredMixin, {
+Ember.RecordArray = Ember.ArrayProxy.extend(Ember.Evented, {
   isLoaded: false,
   isLoading: Ember.computed.not('isLoaded'),
 
@@ -19,12 +19,20 @@ Ember.RecordArray = Ember.ArrayProxy.extend(Ember.Evented, Ember.DeferredMixin, 
   notifyLoaded: function() {
     set(this, 'isLoaded', true);
     this.trigger('didLoad');
-    this.resolve(this);
   },
 
   materializeData: function(klass, data) {
     return Ember.A(data.map(function(el) {
       return klass.findFromCacheOrLoad(el); // FIXME
     }));
+  },
+
+  reload: function() {
+    var modelClass = this.get('modelClass');
+    Ember.assert("Reload can only be called on findAll RecordArrays",
+      modelClass && modelClass._findAllRecordArray === this);
+    
+    set(this, 'isLoaded', false);
+    modelClass.adapter.findAll(modelClass, this);
   }
 });

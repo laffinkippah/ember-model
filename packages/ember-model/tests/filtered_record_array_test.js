@@ -8,8 +8,9 @@ module("Ember.FilteredRecordArray", {
     });
     Model.adapter = Ember.FixtureAdapter.create();
     Model.FIXTURES = [
-      {id: 1, name: 'Erik'},
-      {id: 2, name: 'Stefan'}
+      {id:     1, name: 'Erik'},
+      {id:     2, name: 'Stefan'},
+      {id: 'abc', name: 'Charles'}
     ];
   },
   teardown: function() { }
@@ -37,7 +38,7 @@ test("must be created with a filterProperties property", function() {
 test("with a noop filter will return all the loaded records", function() {
   expect(1);
 
-  Model.find().then(function() {
+  Model.fetch().then(function() {
     start();
 
     var recordArray = Ember.FilteredRecordArray.create({
@@ -46,7 +47,7 @@ test("with a noop filter will return all the loaded records", function() {
       filterProperties: []
     });
 
-    equal(recordArray.get('length'), 2, "There are 2 records");
+    equal(recordArray.get('length'), 3, "There are 3 records");
   });
 
   stop();
@@ -55,7 +56,7 @@ test("with a noop filter will return all the loaded records", function() {
 test("with a filter will return only the relevant loaded records", function() {
   expect(2);
 
-  Model.find().then(function() {
+  Model.fetch().then(function() {
     start();
 
     var recordArray = Ember.FilteredRecordArray.create({
@@ -76,7 +77,7 @@ test("with a filter will return only the relevant loaded records", function() {
 test("loading a record that doesn't match the filter after creating a FilteredRecordArray shouldn't change the content", function() {
   expect(2);
 
-  Model.find().then(function() {
+  Model.fetch().then(function() {
     start();
     var recordArray = Ember.FilteredRecordArray.create({
       modelClass: Model,
@@ -100,7 +101,7 @@ test("loading a record that doesn't match the filter after creating a FilteredRe
 test("loading a record that matches the filter after creating a FilteredRecordArray should update the content of it", function() {
   expect(3);
 
-  Model.find().then(function() {
+  Model.fetch().then(function() {
     start();
     var recordArray = Ember.FilteredRecordArray.create({
       modelClass: Model,
@@ -124,8 +125,7 @@ test("loading a record that matches the filter after creating a FilteredRecordAr
 
 test("changing a property that matches the filter should update the FilteredRecordArray to include it", function() {
   expect(5);
-
-  Model.find().then(function() {
+  Model.fetch().then(function() {
     start();
     var recordArray = Ember.FilteredRecordArray.create({
       modelClass: Model,
@@ -138,13 +138,15 @@ test("changing a property that matches the filter should update the FilteredReco
     equal(recordArray.get('length'), 1, "There is 1 record initially");
     equal(recordArray.get('firstObject.name'), 'Erik', "The record data matches");
 
-    Model.find(2).then(function(record) {
+    Model.fetch(2).then(function(record) {
+      start();
       record.set('name', 'Estefan');
 
       equal(recordArray.get('length'), 2, "There are 2 records after changing the name");
       equal(recordArray.get('firstObject.name'), 'Erik', "The record data matches");
       equal(recordArray.get('lastObject.name'), 'Estefan', "The record data matches");
     });
+    stop();
   });
 
   stop();
@@ -153,7 +155,7 @@ test("changing a property that matches the filter should update the FilteredReco
 test("adding a new record and changing a property that matches the filter should update the FilteredRecordArray to include it", function() {
   expect(5);
 
-  Model.find().then(function() {
+  Model.fetch().then(function() {
     start();
     var recordArray = Ember.FilteredRecordArray.create({
       modelClass: Model,

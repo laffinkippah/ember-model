@@ -17,6 +17,8 @@ test("when no properties have changed on a model, save should noop", function() 
   ok(!obj.get('isDirty'));
 
   Ember.run(obj, obj.save);
+
+  ok(!obj.get('isSaving'));
 });
 
 test("when properties have changed on a model, isDirty should be set", function() {
@@ -41,6 +43,25 @@ test("when properties have changed on a model, isDirty should be set", function(
   Ember.run(obj, obj.save);
 });
 
+test("when properties defined in create have not changed on a model, isDirty should be false", function() {
+  expect(3);
+
+  var Model = Ember.Model.extend({
+    name: attr(),
+    city: attr()
+  });
+
+  var obj = Ember.run(Model, Model.create, {name: 'Jeffrey', city: 'SF'});
+  ok(!obj.get('isDirty'), 'is not dirty before calling set');
+
+  obj.set('name', 'Jeffrey');
+  obj.set('city', 'SF');
+  ok(!obj.get('isDirty'), 'is not dirty after calling set');
+
+  obj.set('name', 'Erik');
+  ok(obj.get('isDirty'), 'is dirty after changing data');
+});
+
 test("when properties are changed back to the loaded value, isDirty should be false", function() {
   expect(6);
 
@@ -56,7 +77,7 @@ test("when properties are changed back to the loaded value, isDirty should be fa
 
   var obj = Ember.run(Model, Model.create, {isNew: false, name: 'Erik'});
   ok(!obj.get('isDirty'));
-  equal(obj._dirtyAttributes, null, "There shouldn't be any dirty attributes");
+  deepEqual(obj._dirtyAttributes, [], "There shouldn't be any dirty attributes");
 
   obj.set('name', 'Jeffrey');
   ok(obj.get('isDirty'));
@@ -137,4 +158,83 @@ test("a type can be specfied to attr which can determine the dirty behavior and 
   ok(!obj.get('isDirty'));
   obj.set('authorName', "Yehuda");
   ok(obj.get('isDirty'));
+});
+
+test("dirty checking works for nested objects", function() {
+  var AuthorType = {
+    isEqual: function(oldValue, newValue) {
+      return newValue.name.first.indexOf(oldValue.name.first) !== -1;
+    }
+  };
+
+  var Model = Ember.Model.extend({
+    author: attr(AuthorType)
+  });
+
+  var obj = Model.create();
+  Ember.run(function() {
+    obj.load(1, {author: {id: 1, name: { first: "Erik", last: "Bryn" }}});
+  });
+
+  ok(!obj.get('isDirty'));
+  obj.set('author.name.first', "Yehuda");
+  ok(obj.get('isDirty'));
+  obj.set('author.name.first', "Erik");
+  ok(!obj.get('isDirty')); // FIXME - this fails
+});
+
+test("dirty checking works with boolean attributes", function() {
+  var Model = Ember.Model.extend({
+    canSwim: attr(Boolean)
+  });
+
+  var obj = Model.create();
+  Ember.run(function() {
+    obj.load(1, {canSwim: true});
+  });
+
+  ok(!obj.get('isDirty'));
+  obj.set('canSwim', false);
+  ok(obj.get('isDirty'), "toggling a boolean value makes the record dirty");
+});
+
+test("dirty checking works with date attributes", function() {
+  var Model = Ember.Model.extend({
+    createdAt: attr(Date)
+  });
+
+  var obj = Model.create();
+  Ember.run(function() {
+    obj.load(1, {createdAt: '2013-01-01T00:00:00.000Z'});
+  });
+
+  ok(obj.get('createdAt'), new Date(2013, 0, 0));
+  ok(!obj.get('isDirty'));
+});
+
+test("getting embedded belongsTo attribute after load should not make parent dirty", function() {
+  expect(2);
+  var json = {
+    id: 1,
+    name: 'foo',
+    author: { id: 1, name: 'Cory Loken' }
+  };
+
+  var Author = Ember.Model.extend({
+        id: Ember.attr(),
+        name: Ember.attr()
+      }),
+      Post = Ember.Model.extend({
+        id: Ember.attr(),
+        author: Ember.belongsTo(Author, {key: 'author', embedded: true})
+      });
+
+  Post.adapter = Ember.FixtureAdapter.create();
+
+  var post = Post.create();
+  Ember.run(post, post.load, json.id, json);
+  equal(post.get('isDirty'), false, 'loaded record for post is not dirty');
+
+  var author = post.get('author');
+  equal(post.get('isDirty'), false, 'get belongsTo relationship does not dirty post record');
 });

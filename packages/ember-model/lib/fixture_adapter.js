@@ -1,15 +1,26 @@
 require('ember-model/adapter');
 
-Ember.FixtureAdapter = Ember.Adapter.extend({
-  find: function(record, id) {
-    var fixtures = record.constructor.FIXTURES,
-        data = Ember.A(fixtures).find(function(el) { return el.id === id; });
+var get = Ember.get;
 
-    if (!record.get('isLoaded')) {
-      setTimeout(function() {
+Ember.FixtureAdapter = Ember.Adapter.extend({
+  _findData: function(klass, id) {
+    var fixtures = klass.FIXTURES,
+        idAsString = id.toString(),
+        primaryKey = get(klass, 'primaryKey'),
+        data = Ember.A(fixtures).find(function(el) { return (el[primaryKey]).toString() === idAsString; });
+
+    return data;
+  },
+
+  find: function(record, id) {
+    var data = this._findData(record.constructor, id);
+
+    return new Ember.RSVP.Promise(function(resolve, reject) {
+      Ember.run.later(this, function() {
         Ember.run(record, record.load, id, data);
-      });
-    }
+        resolve(record);
+      }, 0);
+    });
   },
 
   findMany: function(klass, records, ids) {
@@ -17,19 +28,25 @@ Ember.FixtureAdapter = Ember.Adapter.extend({
         requestedData = [];
 
     for (var i = 0, l = ids.length; i < l; i++) {
-      requestedData.push(fixtures[i]);
+      requestedData.push(this._findData(klass, ids[i]));
     }
 
-    setTimeout(function() {
-      Ember.run(records, records.load, klass, requestedData);
+    return new Ember.RSVP.Promise(function(resolve, reject) {
+      Ember.run.later(this, function() {
+        Ember.run(records, records.load, klass, requestedData);
+        resolve(records);
+      }, 0);
     });
   },
 
   findAll: function(klass, records) {
     var fixtures = klass.FIXTURES;
 
-    setTimeout(function() {
-      Ember.run(records, records.load, klass, fixtures);
+    return new Ember.RSVP.Promise(function(resolve, reject) {
+      Ember.run.later(this, function() {
+        Ember.run(records, records.load, klass, fixtures);
+        resolve(records);
+      }, 0);
     });
   },
 
@@ -37,35 +54,30 @@ Ember.FixtureAdapter = Ember.Adapter.extend({
     var klass = record.constructor,
         fixtures = klass.FIXTURES;
 
-    setTimeout(function() {
-      Ember.run(function() {
+    return new Ember.RSVP.Promise(function(resolve, reject) {
+      Ember.run.later(this, function() {
         fixtures.push(klass.findFromCacheOrLoad(record.toJSON()));
         record.didCreateRecord();
-      });
+        resolve(record);
+      }, 0);
     });
-
-    return record;
   },
 
   saveRecord: function(record) {
-    var deferred = Ember.Deferred.create();
-    deferred.then(function() {
-      record.didSaveRecord();
+    return new Ember.RSVP.Promise(function(resolve, reject) {
+      Ember.run.later(this, function() {
+        record.didSaveRecord();
+        resolve(record);
+      }, 0);
     });
-    setTimeout(function() {
-      Ember.run(deferred, deferred.resolve, record);
-    });
-    return deferred;
   },
 
   deleteRecord: function(record) {
-    var deferred = Ember.Deferred.create();
-    deferred.then(function() {
-      record.didDeleteRecord();
+    return new Ember.RSVP.Promise(function(resolve, reject) {
+      Ember.run.later(this, function() {
+        record.didDeleteRecord();
+        resolve(record);
+      }, 0);
     });
-    setTimeout(function() {
-      Ember.run(deferred, deferred.resolve, record);
-    });
-    return deferred;
   }
 });
