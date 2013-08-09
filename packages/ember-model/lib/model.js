@@ -45,6 +45,12 @@ function extractDirty(object, attrsOrRelations, dirtyAttributes) {
     if (descMeta.kind === 'belongsTo' && dataValue === undefined) {
       dataValue = null;
     }
+    
+    if (descMeta.kind === 'belongsTo' && 
+        descMeta.options.embedded !== true && 
+        cachedValue instanceof Ember.Model) {
+      cachedValue = cachedValue.get(get(type, 'primaryKey'));
+    }
 
     if (type && type.isEqual) {
       isDirty = !type.isEqual(dataValue, cachedValue);
@@ -578,18 +584,29 @@ Ember.Model.reopenClass({
     });
   },
 
-  cachedRecordForId: function(id) {
-    if (!this.recordCache) { this.recordCache = {}; }
-    var record;
+  pushIntoRecordCache: function(records){
+    var primaryKey = get(this, 'primaryKey'), self = this;
+    if (!this.recordCache) this.recordCache = {};
 
-    if (this.recordCache[id]) {
-      record = this.recordCache[id];
-    } else {
+    records.forEach(function(record){
+      self.recordCache[get(record, primaryKey)] = record;
+    });
+  },
+
+  getFromRecordCache: function(id){
+    if (!this.recordCache) this.recordCache = {};
+    return this.recordCache[id];
+  },
+
+  cachedRecordForId: function(id) {
+    var record = this.getFromRecordCache(id);
+
+    if (!record) {
       var primaryKey = get(this, 'primaryKey'),
-          attrs = {isLoaded: false};
+        attrs = {isLoaded: false};
       attrs[primaryKey] = id;
       record = this.create(attrs);
-      this.recordCache[id] = record;
+      this.pushIntoRecordCache([record]);
       var sideloadedData = this.sideloadedData && this.sideloadedData[id];
       if (sideloadedData) {
         record.load(id, sideloadedData);
@@ -598,6 +615,7 @@ Ember.Model.reopenClass({
 
     return record;
   },
+
 
   addToRecordArrays: function(record) {
     if (this._findAllRecordArray) {
@@ -612,6 +630,26 @@ Ember.Model.reopenClass({
           recordArray.pushObject(record);
         }
       });
+    }
+  },
+
+  unload: function (record) {
+    this.removeFromRecordArrays(record);
+    var primaryKey = record.get(get(this, 'primaryKey'));
+    this.removeFromCache(primaryKey);
+  },
+
+  clearCache: function () {
+    this.recordCache = undefined;
+    this.sideloadedData = undefined;
+  },
+
+  removeFromCache: function (key) {
+    if (this.sideloadedData && this.sideloadedData[key]) {
+      delete this.sideloadedData[key];
+    }
+    if (this.recordCache && this.recordCache[key]) {
+      delete this.recordCache[key];
     }
   },
 
@@ -660,8 +698,10 @@ Ember.Model.reopenClass({
   load: function(hashes) {
     if (!this.sideloadedData) { this.sideloadedData = {}; }
     for (var i = 0, l = hashes.length; i < l; i++) {
-      var hash = hashes[i];
-      this.sideloadedData[hash[get(this, 'primaryKey')]] = hash;
+      var hash = hashes[i],
+        primaryKey = hash[get(this, 'primaryKey')];
+      this.removeFromCache(primaryKey);
+      this.sideloadedData[primaryKey] = hash;
     }
   },
 

@@ -321,6 +321,38 @@ test("setting relationship should make parent dirty", function() {
   ok(post.get('isDirty'));
 });
 
+test("setting existing nonembedded relationship should make parent dirty", function() {
+  expect(1);
+
+  var Author = Ember.Model.extend({
+        id: Ember.attr(),
+        name: Ember.attr()
+      }),
+      Post = Ember.Model.extend({
+        id: Ember.attr(),
+        author: Ember.belongsTo(Author, {key: 'author_id'})
+      });
+
+  Post.adapter = Ember.FixtureAdapter.create();
+  Author.adapter = Ember.FixtureAdapter.create();
+
+  var post = Post.create(),
+      author = Author.create(),
+      secondAuthor = Author.create();
+
+  Ember.run(function() {
+    author.load(100, {id: 100, name: 'bob'});
+    secondAuthor.load(101, {id: 101, name: 'ray'});
+    post.load(1, {id: 1, author_id: 100});
+  });
+
+  Ember.run(function() {
+    post.set('author', secondAuthor);
+  });
+
+  ok(post.get('isDirty'));
+});
+
 test("relationships should be seralized when specified with string", function() {
   expect(1);
 
@@ -346,4 +378,51 @@ test("relationships should be seralized when specified with string", function() 
   });
 
   deepEqual(post.toJSON(), {id: 1, author_id: 100});
+});
+
+
+test("belongsTo from an embedded source is able to materialize without having to re-find", function() {
+
+
+  var Company = Ember.Company = Ember.Model.extend({
+     id: Ember.attr('string'),
+     title: Ember.attr('string'),
+     projects: Ember.hasMany('Ember.Project', {key:'projects', embedded: true})
+  }),
+    Project = Ember.Project = Ember.Model.extend({
+        id: Ember.attr('string'),
+        title: Ember.attr('string'),
+        posts: Ember.hasMany('Ember.Post', {key: 'posts', embedded: true}),
+        company: Ember.belongsTo('Ember.Company', {key:'company'})
+    }),
+    Post = Ember.Post = Ember.Model.extend({
+        id: Ember.attr('string'),
+        title: Ember.attr('string'),
+        body: Ember.attr('string'),
+        project: Ember.belongsTo('Ember.Project', {key:'project'})
+    });
+
+  var compJson = {
+    id:1,
+    title:'coolio',
+    projects:[{
+          id: 1,
+          title: 'project one title',
+          company: 1, 
+          posts: [{id: 1, title: 'title', body: 'body', project:1 }, 
+                  {id: 2, title: 'title two', body: 'body two', project:1 }]
+      }] 
+    };
+
+  Company.load([compJson]);
+  var company = Company.find(1);
+
+  equal(company.get('projects.length'), 1);
+  equal(company.get('projects.firstObject.posts.length'), 2);
+  
+  var project1 = company.get('projects.firstObject');
+  equal(company, project1.get('company'));
+
+  var post1 = project1.get('posts.firstObject');
+  equal(project1, post1.get('project'));
 });
