@@ -24,21 +24,6 @@ test("getAttr hook is called when attribute is fetched", function() {
   equal(title, 'TEH ARTICLE', 'the value of the attr should be a value returned from getAttr hook');
 });
 
-test("when the attr is specified on an object it should Object.create the object", function() {
-  var Page = Ember.Model.extend({
-    author: attr()
-  });
-  var originalAuthorObject = {id: 1, name: "Erik"},
-      page = Page.create();
-
-  Ember.run(function() {
-    page.load(1, {author: originalAuthorObject});
-  });
-
-  var newAuthorObject = page.get('author');
-  ok(newAuthorObject !== originalAuthorObject, "The objects shouldn't be the same");
-});
-
 test("attr should not change null to object", function() {
   var Page = Ember.Model.extend({
     author: attr()
@@ -51,22 +36,6 @@ test("attr should not change null to object", function() {
 
   var author = page.get('author');
   equal(author, null, "author should be set to null");
-});
-
-test("it should recognize array values and clone the whole array", function() {
-  var Page = Ember.Model.extend({
-    authors: attr()
-  });
-
-  var page = Page.create(),
-      origArray = ["Erik", "Eryk"];
-
-  Ember.run(function() {
-    page.load(1, { authors: origArray });
-  });
-
-  ok(page.get("authors") !== origArray, "attribute's data array should be cloned");
-  equal(Ember.typeOf(page.get("authors")), "array");
 });
 
 test("attr should deserialize when type has a deserialize method", function() {
@@ -231,19 +200,47 @@ test("toJSON should respect the key option in attr", function() {
   equal(json.author, undefined, "json.author should be undefined");
 });
 
-test("attributes array should be prepared after defining a model", function() {
-  var Model = Ember.Model.extend({
-    id: attr()
+test("custom attributes should revert correctly", function () {
+  var Time = {
+    serialize: function (time) {
+      return time.hour + ":" + time.min;
+    },
+    deserialize: function (string) {
+      var array = string.split(":");
+      return {
+        hour: parseInt(array[0], 10),
+        min: parseInt(array[1], 10)
+      };
+    }
+  };
+
+
+  var Post = Ember.Model.extend({
+    time: Ember.attr(Time)
   });
 
-  var Page = Model.extend({
-    title: attr()
-  });
 
-  var Person = Model.extend({
-    name: attr()
-  });
+  var post = Post.create({});
+  post.load(1, { time: "10:11" });
 
-  deepEqual(Page.create().attributes, ['id', 'title']);
-  deepEqual(Person.create().attributes, ['id', 'name']);
+
+  var t0 = post.get('time');
+  equal(t0.hour, 10, "Time should have correct hour");
+  equal(t0.min, 11, "Time should have correct minute");
+
+
+  post.set('time', { hour: 11, min: 12 });
+
+
+  var t1 = post.get('time');
+  equal(t1.hour, 11, "Time should have correct hour");
+  equal(t1.min, 12, "Time should have correct minute");
+
+  post.revert();
+  var t2 = post.get('time');
+  equal(t2.hour, 10, "Time should have correct hour");
+  equal(t2.min, 11, "Time should have correct minute");
+
+  // should not be dirty now
+  ok(post.get('isDirty') === false, "model should no longer be dirty after reverting changes");
 });

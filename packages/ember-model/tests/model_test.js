@@ -167,7 +167,7 @@ test(".unload(model) removes models from caches and subsequent find(id) return n
   ok(first.get('token') !== second.get('token'));
 });
 
-test(".clearCache destroys sideloadedData and recordCache", function() {
+test(".clearCache destroys sideloadedData and record references", function() {
   expect(4);
 
   var first = Ember.run(Model, Model.find, 'a'),
@@ -175,12 +175,12 @@ test(".clearCache destroys sideloadedData and recordCache", function() {
 
   Model.load([{token: 2, name: 'Yehuda'}]);
 
-  ok(Model.recordCache !== undefined);
+  ok(Model._referenceCache !== undefined);
   ok(Model.sideloadedData !== undefined);
 
   Model.clearCache();
 
-  ok(Model.recordCache === undefined);
+  ok(Model._referenceCache === undefined);
   ok(Model.sideloadedData === undefined);
   
 });
@@ -196,8 +196,8 @@ test("new records are added to the identity map", function() {
   record.on("didCreateRecord", function() {
     start();
 
-    ok(Model.recordCache);
-    equal(Model.recordCache[2], record);
+    ok(Model._referenceCache);
+    equal(Model._referenceCache[2].record, record);
   });
 });
 
@@ -394,26 +394,61 @@ test("Model#create() works as expected", function() {
   stop();
 });
 
-test("relationships are added to relationships list", function() {
+test(".getAttributes() returns the model's attributes", function() {
+  var attr = Ember.attr,
+      BaseModel = Ember.Model.extend({
+        id: attr()
+      }),
+
+      Person = BaseModel.extend({
+        name: attr(),
+        nationality: attr()
+      }),
+
+      Employee = Person.extend({
+        employeeId: attr()
+      }),
+
+      Animal = BaseModel.extend({
+        order: attr(),
+        family: attr(),
+        genus: attr(),
+        species: attr()
+      });
+
+  deepEqual(Employee.getAttributes(), ['id', 'name', 'nationality', 'employeeId']);
+  deepEqual(Person.getAttributes(), ['id', 'name', 'nationality']);
+  deepEqual(Animal.getAttributes(), ['id', 'order', 'family', 'genus', 'species']);
+  deepEqual(BaseModel.getAttributes(), ['id']);
+});
+
+test(".getRelationships() returns the model's relationships", function() {
   var Comment = Ember.Model.extend(),
       Rating = Ember.Model.extend(),
       Author = Ember.Model.extend(),
       Site = Ember.Model.extend(),
-      Article = Ember.Model.extend({
+
+      Commentable = Ember.Model.extend({
         comments: Ember.hasMany(Comment, { key: 'comments' }),
+      }),
+
+      Article = Commentable.extend({
         author: Ember.belongsTo(Author, { key: 'author' }),
         ratings: Ember.hasMany(Rating, { key: 'ratings' })
       }),
+
       News = Article.extend({
         source: Ember.belongsTo(Site, { key: 'site' })
       });
 
-  deepEqual(Article.proto().relationships, ['comments', 'author', 'ratings'], 'relationships keys should be saved into relationships attribute');
-  deepEqual(News.proto().relationships, ['comments', 'author', 'ratings', 'source'], 'relationships keys should be saved into relationships attribute');
+  deepEqual(Commentable.getRelationships(), ['comments']);
+  deepEqual(Article.getRelationships(), ['comments', 'author', 'ratings']);
+  deepEqual(News.getRelationships(), ['comments', 'author', 'ratings', 'source']);
 });
 
 test("toJSON includes embedded relationships", function() {
-  var Comment = Ember.Model.extend({
+  var attr = Ember.attr,
+      Comment = Ember.Model.extend({
         id: Ember.attr(),
         text: Ember.attr()
       }),
@@ -530,11 +565,11 @@ test("can use data as attribute name", function() {
   deepEqual(record.toJSON(), {id: 1, data: 'abc'});
 });
 
-test("record is available in record cache when load is run in cachedRecordForId", function() {
+test("record is available in reference cache when load is run in cachedRecordForId", function() {
   var recordFromCache,
       Post = Ember.Model.extend({
         load: function() {
-          recordFromCache = this.constructor.recordCache['1'];
+          recordFromCache = this.constructor._referenceCache['1'].record;
         }
       });
 
@@ -542,7 +577,7 @@ test("record is available in record cache when load is run in cachedRecordForId"
 
   Post.cachedRecordForId('1');
 
-  ok(recordFromCache, 'record should be available in recordCache when running load');
+  ok(recordFromCache, 'record should be available in cache when running load');
 });
 
 test("fetchQuery returns a promise", function() {

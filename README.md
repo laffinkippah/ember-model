@@ -20,7 +20,6 @@ Need more help getting started? Join us in #ember-model on Freenode.
 - Relationships (hasMany/belongsTo)
 - Focused on performance
 - Automatic coalescing of multiple findById calls into a single findMany
-- Customizable dirty tracking (great for embedded objects)
 - Fixtures
 - Identity map (per class)
 - Promises everywhere
@@ -71,7 +70,7 @@ existingUser.save(); // PUT /users/1.json
 
 ## Model API
 
-`Model#create` - create a new record
+`Model.create` - create a new record
 
 `Model#save` - save or update record
 
@@ -87,7 +86,13 @@ existingUser.save(); // PUT /users/1.json
 
 `Model.find(<object>)` - find query - object gets passed directly to your adapter
 
-`Model.load(<array>)` - load an array of model data (aka sideloading)
+`Model.fetch()` - find all records, returns a promise
+
+`Model.fetch(<String|Number>)` - find by primary key (multiple calls within a single run loop can coalesce to a findMany), returns a promise
+
+`Model.fetch(<object>)` - find query - object gets passed directly to your adapter, returns a promise
+
+`Model.load(<array>)` - load an array of model data (typically used when preloading / sideloading data)
 
 ## Adapter API
 
@@ -112,10 +117,7 @@ Ember.Adapter = Ember.Object.extend({
 ## Attribute types
 
 Attributes by default have no type and are not typecast from the representation
-provided in the JSON format. Objects and arrays are cloned, so that clean copy
-of the attribute is maintained internally in case of wanting to revert a dirty
-record to a clean state.
-
+provided in the JSON format.
 
 ### Built in attribute types
 
